@@ -5,13 +5,23 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include "http.h"
+
+#define MAXBUFFSIZE 1024
+
+void send_response(int con_id, int status, char *value)
+{
+    char buff[MAXBUFFSIZE];
+    sprintf(buff, "HTTP/1.1 %d %s\r\n Content-Type: text/html\r\n\r\n %s", status, status_code_strings.find(status), 
+    "<html><head><meta charset=\"utf-8\"><title>http webserver-test</title></head><body>Hello !!</body></html>");
+}
 
 int main(int argc , char *argv[])
 {
     int socketR = 0, clientR;
     int backlogNum =5;
     char inputBuffer[256]={};
-    char message[]={"HTTP/1.1 200 OK!\n\r"};
+    char message[]={};
     struct sockaddr_in server_info, client_info;
     int addrlen = sizeof(client_info);
 
