@@ -10,9 +10,9 @@
 #define MAXBUFFSIZE 1024
 #define M_GET 1
 
-char response_header_200[] = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n";
-const char response_header_404[] = "HTTP/1.1 404 Not Found\r\n";
-char htmldata[]="<html><head><meta charset=\\utf-8\\><title>http webserver-test</title></head><body>Hello!!</body></html>\r\n\r\n";
+// char response_header_200[] = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n";
+// const char response_header_404[] = "HTTP/1.1 404 Not Found\r\n";
+// char htmldata[]="<html><head><meta charset=\\utf-8\\><title>http webserver-test</title></head><body>Hello!!</body></html>\r\n\r\n";
 char cwd[PATH_MAX];
 
 struct http_response{
@@ -51,7 +51,7 @@ void send_response(int con_id, int status, int packetsize)
     }
     else if(status==404)
     {
-        respon.status="HTTP/1.1 404 not found\r\n\r\n\r\n";
+        respon.status="HTTP/1.1 404 not found\r\n\r\n";
         respon.content_type="";
         respon.content_type_v="";
 
@@ -66,21 +66,21 @@ void send_response(int con_id, int status, int packetsize)
 
 void rcv_handler(char* rcv, int con_id)
 {
-    char *stopword = "\n";
+    char *stopword = "\r\n";
     char *pch;
     int tempsize=0;
     char* line;
     char *name;
     int method;
+    size_t ret;
 
     printf("get %s\n", rcv);
     pch = strtok(rcv, stopword);
     tempsize = strlen(pch);
-    line = malloc(sizeof(char)*tempsize);
-    strncpy(line, pch, sizeof(char)*tempsize);
+    line = malloc(sizeof(char)*tempsize); 
+    strncpy(line, pch, sizeof(char)*tempsize); //keep the first line of request
     printf("line %s\n", line);
     
-    // sscanf(line, "GET %s HTTP/1.1", name);
     name = strtok(line, " ");
     if(strncmp(name, "GET", 3)==0)
     {
@@ -97,20 +97,47 @@ void rcv_handler(char* rcv, int con_id)
         if((fp=fopen(wholename, "r")) != NULL)
         {
             printf("open file!! ");
+            /*using file end and file head to get file size*/
             fseek(fp, 0, SEEK_END);
             filesize = ftell(fp);
             fseek(fp, 0, SEEK_SET);
             printf("filesize: %d\n", filesize);
+
             send_response(con_id, 200, filesize);
-            fread(buffer, filesize, 1, fp);
-            send(con_id, buffer, filesize, 0);
+            if(MAXBUFFSIZE > filesize)
+            {
+                ret = fread(buffer, filesize, 1, fp);
+                send(con_id, buffer, filesize, 0);
+            }
+            else
+            {
+                int temp = filesize;
+                ret = fread(buffer, MAXBUFFSIZE, 1, fp);
+                send(con_id, buffer, MAXBUFFSIZE, 0);
+                while(ret >0)
+                {
+                    temp = temp - MAXBUFFSIZE;
+                    if(temp > MAXBUFFSIZE)
+                    {
+                        ret = fread(buffer, MAXBUFFSIZE, 1, fp);
+                        send(con_id, buffer, MAXBUFFSIZE, 0);
+                    }
+                    else{
+                        ret = fread(buffer, temp, 1, fp);
+                        send(con_id, buffer, temp, 0);
+                    }
+                }
+            }
             fclose(fp);
+            free(wholename);
         }
         else
         {
+            send_response(con_id, 404, 0);
             printf("cann't open file\n");
         }
-    }  
+    }
+    free(line);  
 }
 
 int main(int argc , char *argv[])
