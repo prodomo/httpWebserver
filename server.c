@@ -33,7 +33,7 @@ void send_response(int con_id, int status, int packetsize)
 {
     int size=0;
     struct http_response respon;
-    if(status==200){
+    if(status == 200){
         respon.status="HTTP/1.1 200 OK\r\n";
         respon.content_type="Content-Type: ";
         respon.content_type_v="text/html\r\n";
@@ -49,18 +49,26 @@ void send_response(int con_id, int status, int packetsize)
         send(con_id, buff, size, 0);
         free(buff);
     }
-    else if(status==404)
+    else if(status == 404)
     {
-        respon.status="HTTP/1.1 404 not found\r\n\r\n";
+        size=0;
+        respon.status="HTTP/1.1 404 Not found\r\n";
         respon.content_type="";
         respon.content_type_v="";
-
-        size = strlen(respon.status)+strlen(respon.content_type)+strlen(respon.content_type_v);
-        // printf("%d %d %d %d %d\n",size ,strlen(respon.status),strlen(respon.content_type),strlen(respon.content_type_v),strlen(htmldata));
+        respon.content_length="Content-Length: ";
+        respon.content_length_v="0";
+        respon.end="\r\n\r\n";
+        
+        // printf("each strlen %ld %ld %ld %ld\n", strlen(respon.status), strlen(respon.content_length), strlen(respon.content_length_v),strlen(respon.end));
+        size = strlen(respon.status) + strlen(respon.content_length) + strlen(respon.content_length_v) + strlen(respon.end);
+        // printf("size of total = %d\n\n", size);
         char* buff = malloc(sizeof(char)*size);
-        sprintf(buff, "%s%s%s", respon.status, respon.content_type, respon.content_type_v);
+        sprintf(buff, "%s%s%s%s", respon.status, respon.content_length, respon.content_length_v, respon.end);
         send(con_id, buff, size, 0);
         free(buff);
+    }
+    else{
+
     }
 }
 
@@ -90,7 +98,7 @@ void rcv_handler(char* rcv, int con_id)
 
         FILE *fp;
         char buffer[1024];
-        long filesize=0;
+        long filesize = 0;
         char * wholename = malloc(strlen(cwd)+strlen(name));
         sprintf(wholename, "%s%s", cwd, name);
         printf("path: %s\n", wholename);
@@ -101,7 +109,7 @@ void rcv_handler(char* rcv, int con_id)
             fseek(fp, 0, SEEK_END);
             filesize = ftell(fp);
             fseek(fp, 0, SEEK_SET);
-            printf("filesize: %d\n", filesize);
+            printf("filesize: %ld\n", filesize);
 
             send_response(con_id, 200, filesize);
             if(MAXBUFFSIZE > filesize)
@@ -133,8 +141,11 @@ void rcv_handler(char* rcv, int con_id)
         }
         else
         {
-            send_response(con_id, 404, 0);
+            filesize=0;
             printf("cann't open file\n");
+            send_response(con_id, 404, filesize);
+            
+            free(wholename);
         }
     }
     free(line);  
