@@ -2,7 +2,7 @@
 #include <time.h>
 
 /* usr define */
-#define LOG_LEVEL LOG_LEVEL_INFO /*more higher more detail*/
+#define LOG_LEVEL LOG_LEVEL_DBG /*more higher more detail*/
 #define LOG_WITH_MODULE_PREFIX 1 /*print prefix or not*/
 
 /* The different log levels available */
@@ -15,7 +15,7 @@
 /*funcitons*/
 static inline char *timenow();
 
-#define LOG_OUTPUT(...) printf(__VA_ARGS__)
+#define LOG_OUTPUT(...) fprintf(stdout, __VA_ARGS__)
 #define LOG_OUTPUT_PREFIX(level, levelstr) LOG_OUTPUT("[%-4s] %s ", levelstr, timenow())
 
 #define LOG(newline, level, levelstr, ...) do {  \

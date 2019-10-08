@@ -11,9 +11,6 @@
 #define MAXBUFFSIZE 1024
 #define M_GET 1
 
-// char response_header_200[] = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n";
-// const char response_header_404[] = "HTTP/1.1 404 Not Found\r\n";
-// char htmldata[]="<html><head><meta charset=\\utf-8\\><title>http webserver-test</title></head><body>Hello!!</body></html>\r\n\r\n";
 struct http_response{
     char *status;
     char *content_type;
@@ -41,16 +38,15 @@ void send_response(int con_id, int status, int packetsize)
     int size=0;
     struct http_response respon;
     if(status == 200){
-        respon.status="HTTP/1.1 200 OK\r\n";
-        respon.content_type="Content-Type: ";
+        respon.status="HTTP/1.0 200 OK\r\n"; //len:17
+        respon.content_type="Content-Type: "; //len:14
         respon.content_type_v="text/html\r\n";
-        respon.content_length="Content-Length: ";
+        respon.content_length="Content-Length: "; //len:16
         respon.end="\r\n\r\n";
         sprintf(respon.content_length_v, "%d", packetsize);
 
-        // size = strlen(respon.status)+strlen(respon.content_type)+strlen(respon.content_type_v)+strlen(htmldata);
-        size = strlen(respon.status)+strlen(respon.content_type)+strlen(respon.content_type_v)+strlen(respon.content_length)+strlen(respon.content_length_v)+strlen(respon.end);
-        // printf("%d %d %d %d %d\n",size ,strlen(respon.status),strlen(respon.content_type),strlen(respon.content_type_v),strlen(htmldata));
+        size = 17+14+strlen(respon.content_type_v)+16+strlen(respon.content_length_v)+4;
+        // printf("%d %d %d\n",strlen(respon.status),strlen(respon.content_type),strlen(respon.content_length));
         char* buff = malloc(sizeof(char)*size);
         sprintf(buff, "%s%s%s%s%s%s", respon.status, respon.content_type, respon.content_type_v, respon.content_length, respon.content_length_v, respon.end);
         send(con_id, buff, size, 0);
@@ -59,7 +55,7 @@ void send_response(int con_id, int status, int packetsize)
     else if(status == 404)
     {
         size=0;
-        respon.status="HTTP/1.1 404 Not found\r\n";
+        respon.status="HTTP/1.0 404 Not found\r\n";
         respon.content_type="";
         respon.content_type_v="";
         respon.content_length="Content-Length: ";
@@ -67,8 +63,9 @@ void send_response(int con_id, int status, int packetsize)
         respon.end="\r\n\r\n";
         
         // printf("each strlen %ld %ld %ld %ld\n", strlen(respon.status), strlen(respon.content_length), strlen(respon.content_length_v),strlen(respon.end));
-        size = strlen(respon.status) + strlen(respon.content_length) + strlen(respon.content_length_v) + strlen(respon.end);
-        // printf("size of total = %d\n\n", size);
+        size = 45;
+        // size = strlen(respon.status) + strlen(respon.content_length) + strlen(respon.content_length_v) + strlen(respon.end);
+        // LOG_DBG("size of total = %d\n\n", size);
         char* buff = malloc(sizeof(char)*size);
         sprintf(buff, "%s%s%s%s", respon.status, respon.content_length, respon.content_length_v, respon.end);
         send(con_id, buff, size, 0);
@@ -124,24 +121,32 @@ void rcv_handler(char* rcv, int con_id)
             {
                 ret = fread(buffer, filesize, 1, fp);
                 send(con_id, buffer, filesize, 0);
+                LOG_DBG("send data packet! packet filesize size:%d \n", filesize);
             }
             else
             {
                 int temp = filesize;
                 ret = fread(buffer, MAXBUFFSIZE, 1, fp);
                 send(con_id, buffer, MAXBUFFSIZE, 0);
-                while(ret >0)
+                temp = temp - MAXBUFFSIZE;
+                while(temp>0 && ret>0)
                 {
-                    temp = temp - MAXBUFFSIZE;
                     if(temp > MAXBUFFSIZE)
                     {
                         ret = fread(buffer, MAXBUFFSIZE, 1, fp);
                         send(con_id, buffer, MAXBUFFSIZE, 0);
+                        LOG_DBG("send data packet! temp size %d packet size:%d \n",temp ,MAXBUFFSIZE);
                     }
-                    else{
+                    else if(temp <= MAXBUFFSIZE){
                         ret = fread(buffer, temp, 1, fp);
                         send(con_id, buffer, temp, 0);
+                        LOG_DBG("send data packet! packet temp size:%d \n", temp);
                     }
+                    else
+                    {
+                        //pass
+                    }
+                    temp = temp - MAXBUFFSIZE;
                 }
             }
             fclose(fp);
@@ -223,8 +228,8 @@ int main(int argc , char *argv[])
         // send(clientR, message, sizeof(message), 0);
         close(clientR);
         current_connction_counter = current_connction_counter - 1;
-        LOG_INFO("close connection, current: %d, total: %d\n", current_connction_counter, total_connection_counter);
-
+        LOG_INFO("close connection, current: %d, total: %d\n", 
+        current_connction_counter, total_connection_counter);
     }
 
     return 0;
