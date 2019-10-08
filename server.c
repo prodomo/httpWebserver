@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <limits.h>
+#include "log.h"
 
 #define MAXBUFFSIZE 1024
 #define M_GET 1
@@ -13,8 +14,6 @@
 // char response_header_200[] = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n";
 // const char response_header_404[] = "HTTP/1.1 404 Not Found\r\n";
 // char htmldata[]="<html><head><meta charset=\\utf-8\\><title>http webserver-test</title></head><body>Hello!!</body></html>\r\n\r\n";
-char cwd[PATH_MAX];
-
 struct http_response{
     char *status;
     char *content_type;
@@ -29,8 +28,16 @@ struct http_request{
     char* payload;
 };
 
+char cwd[PATH_MAX];
+int total_connection_counter;
+int total_request_counter;
+int total_response_counter;
+int current_connction_counter;
+
 void send_response(int con_id, int status, int packetsize)
 {
+    total_response_counter = total_response_counter + 1;
+    LOG_INFO("send response(%d), total response:%d \n",status , total_request_counter);
     int size=0;
     struct http_response respon;
     if(status == 200){
@@ -82,18 +89,19 @@ void rcv_handler(char* rcv, int con_id)
     int method;
     size_t ret;
 
-    printf("get %s\n", rcv);
+    LOG_DBG("rcv_handler get %s\n", rcv);
     pch = strtok(rcv, stopword);
+    LOG_DBG("pch: %s\n", pch);
     tempsize = strlen(pch);
-    line = malloc(sizeof(char)*tempsize); 
-    strncpy(line, pch, sizeof(char)*tempsize); //keep the first line of request
-    printf("line %s\n", line);
+    line = calloc(tempsize, sizeof(char));
+    strncpy(line, pch, tempsize); //keep the first line of request
+    LOG_DBG("copy from pch: %s\n", line);
     
     name = strtok(line, " ");
     if(strncmp(name, "GET", 3)==0)
     {
         name = strtok(NULL, " ");
-        printf("get filename: %s\n", name);
+        LOG_DBG("get filename: %s\n", name);
         method = M_GET;
 
         FILE *fp;
@@ -101,15 +109,15 @@ void rcv_handler(char* rcv, int con_id)
         long filesize = 0;
         char * wholename = malloc(strlen(cwd)+strlen(name));
         sprintf(wholename, "%s%s", cwd, name);
-        printf("path: %s\n", wholename);
+        LOG_DBG("path: %s\n", wholename);
         if((fp=fopen(wholename, "r")) != NULL)
         {
-            printf("open file!! ");
+            LOG_DBG("open file!! \n");
             /*using file end and file head to get file size*/
             fseek(fp, 0, SEEK_END);
             filesize = ftell(fp);
             fseek(fp, 0, SEEK_SET);
-            printf("filesize: %ld\n", filesize);
+            LOG_DBG("filesize: %ld\n", filesize);
 
             send_response(con_id, 200, filesize);
             if(MAXBUFFSIZE > filesize)
@@ -142,9 +150,9 @@ void rcv_handler(char* rcv, int con_id)
         else
         {
             filesize=0;
-            printf("cann't open file\n");
+            LOG_INFO("cann't find file or cann't open file\n");
             send_response(con_id, 404, filesize);
-            
+
             free(wholename);
         }
     }
@@ -159,11 +167,17 @@ int main(int argc , char *argv[])
     struct sockaddr_in server_info, client_info;
     int addrlen = sizeof(client_info);
 
+    total_connection_counter = 0;
+    total_request_counter = 0;
+    total_response_counter = 0;
+    current_connction_counter =0;
+
     if(getcwd(cwd, sizeof(cwd)) != NULL)
     {
-        printf("Current working dir: %s\n", cwd);
+        // printf("Current working dir: %s\n", cwd);
+        LOG_DBG("Current working dir: %s\n", cwd);
     }else{
-        printf("getcwd() error");
+        LOG_ERR("getcwd() error");
     }
 
     //AF_INET=IPv4 AF_INET6=IPv6, SOCK_STREAM=connection SOCK_DGRAM=connectionless
@@ -171,7 +185,9 @@ int main(int argc , char *argv[])
 
     if(socketR == -1)
     {
-        printf("[ERROR] Fail to create a socket! \n");
+        // printf("[ERROR] Fail to create a socket! \n");
+        LOG_ERR(" Fail to create a socket! \n");
+        exit(EXIT_FAILURE);
     }
 
     bzero(&server_info, sizeof(server_info)); //init set info all bit to zero
@@ -179,17 +195,36 @@ int main(int argc , char *argv[])
     server_info.sin_port = htons(80);
     server_info.sin_addr.s_addr = INADDR_ANY; //localIP decided by kernal
 
-    bind(socketR, (struct sockaddr*)&server_info, sizeof(server_info));
-    listen(socketR, backlogNum);
+    if(bind(socketR, (struct sockaddr*)&server_info, sizeof(server_info))<0)
+    {
+        LOG_ERR("bind error! \n");
+        exit(EXIT_FAILURE);
+    }
+    if(listen(socketR, backlogNum)<0)
+    {
+        LOG_ERR("listen error! \n");
+        exit(EXIT_FAILURE);
+    }
 
     while(1)
     {
         clientR = accept(socketR, (struct sockaddr*)&client_info, &addrlen);
+        total_connection_counter += 1;
+        current_connction_counter += 1;
+        LOG_INFO("accept a new connection! total: %d, current: %d\n", total_connection_counter, current_connction_counter);
+        
         recv(clientR, inputBuffer,sizeof(inputBuffer),0);
-        printf("Get:%s\n",inputBuffer);
+        total_request_counter += 1;
+        LOG_INFO("get new request, total request %d\n", total_request_counter);
+        // printf("Get:%s\n",inputBuffer);
+        LOG_DBG("Get request:%s\n",inputBuffer);
         rcv_handler(inputBuffer, clientR);
+        bzero(inputBuffer, sizeof(inputBuffer));
         // send(clientR, message, sizeof(message), 0);
         close(clientR);
+        current_connction_counter = current_connction_counter - 1;
+        LOG_INFO("close connection, current: %d, total: %d\n", current_connction_counter, total_connection_counter);
+
     }
 
     return 0;
