@@ -6,13 +6,15 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <limits.h>
-#include "log.h"
+#include "lib/log.h"
 
 #define MAXBUFFSIZE 1024
 #define M_GET 1
 
+
 struct http_response{
     char *status;
+    // char *connection;
     char *content_type;
     char *content_type_v;
     char *content_length;
@@ -39,6 +41,7 @@ void send_response(int con_id, int status, int packetsize)
     struct http_response respon;
     if(status == 200){
         respon.status="HTTP/1.0 200 OK\r\n"; //len:17
+        // respon.connection="Connection: close\r\n"; //len:19
         respon.content_type="Content-Type: "; //len:14
         respon.content_type_v="text/html\r\n";
         respon.content_length="Content-Length: "; //len:16
@@ -56,6 +59,7 @@ void send_response(int con_id, int status, int packetsize)
     {
         size=0;
         respon.status="HTTP/1.0 404 Not found\r\n";
+        // respon.connection="Connection: close\r\n";
         respon.content_type="";
         respon.content_type_v="";
         respon.content_length="Content-Length: ";
@@ -120,7 +124,8 @@ void rcv_handler(char* rcv, int con_id)
             if(MAXBUFFSIZE > filesize)
             {
                 ret = fread(buffer, filesize, 1, fp);
-                send(con_id, buffer, filesize, 0);
+                int check = send(con_id, buffer, filesize, 0);
+                LOG_DBG("check send value %d\n", check);
                 LOG_DBG("send data packet! packet filesize size:%d \n", filesize);
             }
             else
@@ -166,7 +171,7 @@ void rcv_handler(char* rcv, int con_id)
 
 int main(int argc , char *argv[])
 {
-    int socketR = 0, clientR;
+    int socketR = 0, clientR, on=1;
     int backlogNum =5;
     char inputBuffer[256]={};
     struct sockaddr_in server_info, client_info;
@@ -187,11 +192,15 @@ int main(int argc , char *argv[])
 
     //AF_INET=IPv4 AF_INET6=IPv6, SOCK_STREAM=connection SOCK_DGRAM=connectionless
     socketR = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-
     if(socketR == -1)
     {
         // printf("[ERROR] Fail to create a socket! \n");
-        LOG_ERR(" Fail to create a socket! \n");
+        LOG_ERR("fail to create a socket! \n");
+        exit(EXIT_FAILURE);
+    }
+    if(setsockopt( socketR, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on))<0)
+    {
+        LOG_ERR("set socket address resuse error! \n");
         exit(EXIT_FAILURE);
     }
 

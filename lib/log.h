@@ -2,7 +2,12 @@
 #include <time.h>
 
 /* usr define */
+#ifdef LOG_CONF_LEVEL
+#define LOG_LEVEL LOG_CONF_LEVEL
+#else
 #define LOG_LEVEL LOG_LEVEL_DBG /*more higher more detail*/
+#endif
+
 #define LOG_WITH_MODULE_PREFIX 1 /*print prefix or not*/
 
 /* The different log levels available */

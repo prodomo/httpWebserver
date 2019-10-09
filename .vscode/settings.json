@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "sstream": "c",
-        "limits.h": "c"
+        "limits.h": "c",
+        "stdio.h": "c"
     }
 }
